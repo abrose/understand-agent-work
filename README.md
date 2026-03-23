@@ -4,13 +4,20 @@ A local dev tool that builds a persistent graph database of a TypeScript/JavaScr
 
 ## Prerequisites
 
-- **Node.js 18+** (requires ES2022 support)
-- **pnpm 10+**
-- A TypeScript or JavaScript project to analyze
-
-> Kuzu and better-sqlite3 are native modules and will compile during `pnpm install`. You may need Python 3 and a C++ toolchain (e.g. `build-essential` on Ubuntu, Xcode CLT on macOS) if prebuilt binaries aren't available for your platform.
+- **Docker** and **Docker Compose** (recommended)
+- Or: **Node.js 22+**, **pnpm 10+**, Python 3, and a C++ toolchain for native modules
 
 ## Installation
+
+### Docker (recommended)
+
+```bash
+git clone <repo-url> depgraph
+cd depgraph
+docker compose build
+```
+
+### Local (requires matching Node.js version for native modules)
 
 ```bash
 git clone <repo-url> depgraph
@@ -29,30 +36,39 @@ This builds all three packages:
 
 ## Quick Start
 
-### 1. Initialize the graph
-
-Point `depgraph init` at the source directory of any TS/JS project:
+### Docker
 
 ```bash
-# Analyze a local project
-node packages/server/dist/index.js init /path/to/your-project/src
+# Analyze a project
+PROJECT_DIR=/path/to/your-project docker compose run depgraph init /workspace/src
+
+# Start the server (UI at http://localhost:3000)
+PROJECT_DIR=/path/to/your-project docker compose up
 ```
 
-This will:
-- Recursively find all `.ts`, `.tsx`, `.js`, and `.jsx` files
-- Parse imports and symbols from each file using ts-morph
-- Store the file-level and symbol-level graph in Kuzu (`.depgraph/graph.kuzu/`)
-- Store project metadata in SQLite (`.depgraph/meta.sqlite`)
+The `PROJECT_DIR` environment variable tells Docker which project directory to mount at `/workspace` inside the container. All commands that reference project paths should use `/workspace` as the root.
 
-The `.depgraph/` directory is created inside the target project's root.
-
-### 2. Start the server
+### Local
 
 ```bash
+# Analyze a project
+node packages/server/dist/index.js init /path/to/your-project/src
+
+# Start the server
 node packages/server/dist/index.js serve
 ```
 
-This starts:
+### What happens during init
+
+- Recursively finds all `.ts`, `.tsx`, `.js`, and `.jsx` files
+- Parses imports and symbols from each file using ts-morph
+- Stores the file-level and symbol-level graph in Kuzu (`.depgraph/graph.kuzu/`)
+- Stores project metadata in SQLite (`.depgraph/meta.sqlite`)
+
+The `.depgraph/` directory is created inside the target project's root.
+
+### What happens during serve
+
 - An Express API on `http://localhost:3000`
 - A file watcher (chokidar) that incrementally updates the graph on code changes
 - A WebSocket server that pushes live updates to the UI
@@ -62,10 +78,14 @@ Open **http://localhost:3000** in your browser to see the interactive graph.
 #### Custom port
 
 ```bash
+# Docker
+PROJECT_DIR=/path/to/your-project docker compose run -p 4000:4000 depgraph serve --port 4000
+
+# Local
 node packages/server/dist/index.js serve --port 4000
 ```
 
-### 3. Query the graph from the terminal
+### Query the graph from the terminal
 
 Run Cypher queries directly without opening the browser:
 
@@ -91,7 +111,7 @@ node packages/server/dist/index.js query \
   'MATCH (f:File) WHERE f.dir STARTS WITH "src/auth" RETURN f.id'
 ```
 
-### 4. Backfill git history
+### Backfill git history
 
 Snapshot the dependency graph at past commits to see how it evolved:
 
@@ -102,7 +122,7 @@ node packages/server/dist/index.js history --n 20
 
 Once backfilled, use the timeline slider in the UI header to scrub through commits and see the graph at each point in time.
 
-### 5. Watch without the UI
+### Watch without the UI
 
 Run the file watcher headlessly (no HTTP server or UI):
 
@@ -110,7 +130,7 @@ Run the file watcher headlessly (no HTTP server or UI):
 node packages/server/dist/index.js watch
 ```
 
-### 6. Reset and re-parse
+### Reset and re-parse
 
 ```bash
 node packages/server/dist/index.js reset
@@ -248,18 +268,21 @@ Here's a step-by-step walkthrough using a real open source project.
 
 ### Example: Analyze Express.js itself
 
+#### Docker
+
 ```bash
-# Clone a project to analyze
+git clone https://github.com/expressjs/express.git /tmp/express-test
+PROJECT_DIR=/tmp/express-test docker compose run depgraph init /workspace
+PROJECT_DIR=/tmp/express-test docker compose up
+```
+
+#### Local
+
+```bash
 git clone https://github.com/expressjs/express.git /tmp/express-test
 cd /path/to/depgraph
-
-# Build depgraph
 pnpm install && pnpm run build
-
-# Initialize the graph (point at the source directory)
 node packages/server/dist/index.js init /tmp/express-test
-
-# Start the server
 node packages/server/dist/index.js serve
 ```
 
@@ -279,14 +302,17 @@ Open http://localhost:3000 — you'll see the module graph rendered as an intera
 
 ### Example: Analyze your own project
 
+#### Docker
+
 ```bash
-# Point at your project's source root
+PROJECT_DIR=~/my-project docker compose run depgraph init /workspace/src
+PROJECT_DIR=~/my-project docker compose up
+```
+
+#### Local
+
+```bash
 node packages/server/dist/index.js init ~/my-project/src
-
-# Or point at the entire repo (it filters to .ts/.tsx/.js/.jsx only)
-node packages/server/dist/index.js init ~/my-project
-
-# Start the server
 node packages/server/dist/index.js serve
 ```
 
@@ -339,4 +365,6 @@ Edge tables:  IMPORTS (File→File), CALLS (Symbol→Symbol), SNAPSHOT (Commit�
 
 **Port 3000 already in use** — Either stop the other process or use `--port 4000`.
 
-**Native module build errors during install** — Ensure you have Python 3 and a C++ compiler available. On Ubuntu: `sudo apt install build-essential python3`. On macOS: `xcode-select --install`.
+**Native module build errors during install (local only)** — Ensure you have Python 3 and a C++ compiler available. On Ubuntu: `sudo apt install build-essential python3`. On macOS: `xcode-select --install`. Using Docker avoids this entirely.
+
+**NODE_MODULE_VERSION mismatch** — The native modules (`better-sqlite3`, `kuzu`) were compiled for a different Node.js version. Either use Docker (recommended) or run `pnpm rebuild` after switching Node versions.
