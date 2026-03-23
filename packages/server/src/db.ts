@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import Database from 'better-sqlite3';
+import { openDatabase, type SqliteDatabase } from './sqlite-wrapper.js';
 import { Database as KuzuDatabase, Connection as KuzuConnection } from 'kuzu';
 import { GraphBuilder } from '@depgraph/core';
 import type { GraphDB, QueryResult } from '@depgraph/core';
@@ -10,7 +10,7 @@ const DEPGRAPH_DIR = '.depgraph';
 export interface DBContext {
   kuzuDb: KuzuDatabase;
   kuzuConn: KuzuConnection;
-  sqlite: Database.Database;
+  sqlite: SqliteDatabase;
   builder: GraphBuilder;
   depgraphDir: string;
 }
@@ -45,8 +45,8 @@ export async function initDB(projectRoot: string): Promise<DBContext> {
   const kuzuDb = new KuzuDatabase(kuzuPath);
   const kuzuConn = new KuzuConnection(kuzuDb);
 
-  // Initialize SQLite
-  const sqlite = new Database(sqlitePath);
+  // Initialize SQLite (pure JS via sql.js)
+  const sqlite = await openDatabase(sqlitePath);
   sqlite.pragma('journal_mode = WAL');
 
   // Create SQLite tables
@@ -86,7 +86,7 @@ export async function initDB(projectRoot: string): Promise<DBContext> {
 }
 
 export function saveProjectMeta(
-  sqlite: Database.Database,
+  sqlite: SqliteDatabase,
   root: string
 ): void {
   const now = new Date().toISOString();
@@ -97,14 +97,14 @@ export function saveProjectMeta(
     .run(root, now, now);
 }
 
-export function updateLastParsed(sqlite: Database.Database): void {
+export function updateLastParsed(sqlite: SqliteDatabase): void {
   sqlite
     .prepare(`UPDATE project SET last_parsed = ? WHERE id = 'default'`)
     .run(new Date().toISOString());
 }
 
 export function logParseError(
-  sqlite: Database.Database,
+  sqlite: SqliteDatabase,
   file: string,
   line: number,
   message: string
