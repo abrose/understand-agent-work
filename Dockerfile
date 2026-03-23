@@ -22,7 +22,7 @@ COPY packages/ui/ packages/ui/
 RUN pnpm run build
 
 # Prune dev dependencies after build
-RUN pnpm prune --prod
+RUN CI=true pnpm prune --prod
 
 # ------- runtime -------
 FROM node:22-slim
