@@ -27,8 +27,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
-        specifier: ^9.0.0
-        version: 9.6.0
+        specifier: ^12.0.0
+        version: 12.8.0
       chokidar:
         specifier: ^3.6.0
         version: 3.6.0
@@ -52,7 +52,7 @@ importers:
         version: 8.20.0
     devDependencies:
       '@types/better-sqlite3':
-        specifier: ^7.6.0
+        specifier: ^7.6.12
         version: 7.6.13
       '@types/cors':
         specifier: ^2.8.0
@@ -719,8 +719,9 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  better-sqlite3@9.6.0:
-    resolution: {integrity: sha512-yR5HATnqeYNVnkaUTf4bOP2dJSnyhP4puJN/QPRyx4YkBEEUxib422n2XzPqDEHjQQqazoYoADdAm5vE15+dAQ==}
+  better-sqlite3@12.8.0:
+    resolution: {integrity: sha512-RxD2Vd96sQDjQr20kdP+F+dK/1OUNiVOl200vKBZY8u0vTwysfolF6Hq+3ZK2+h8My9YvZhHsF+RSGZW2VYrPQ==}
+    engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -2289,7 +2290,7 @@ snapshots:
 
   baseline-browser-mapping@2.10.10: {}
 
-  better-sqlite3@9.6.0:
+  better-sqlite3@12.8.0:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
