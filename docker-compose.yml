@@ -1,0 +1,15 @@
+services:
+  depgraph:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount the project you want to analyze
+      - ${PROJECT_DIR:-.}:/workspace
+      # Persist the graph database between runs
+      - depgraph-data:/workspace/.depgraph
+    environment:
+      - NODE_ENV=production
+
+volumes:
+  depgraph-data:
