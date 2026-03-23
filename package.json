@@ -1,0 +1,15 @@
+{
+  "name": "depgraph",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:core": "npm run build -w packages/core",
+    "build:server": "npm run build -w packages/server",
+    "build:ui": "npm run build -w packages/ui",
+    "dev:ui": "npm run dev -w packages/ui"
+  }
+}
