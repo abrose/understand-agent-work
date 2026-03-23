@@ -5,18 +5,18 @@ A local dev tool that builds a persistent graph database of a TypeScript/JavaScr
 ## Prerequisites
 
 - **Node.js 18+** (requires ES2022 support)
-- **npm 8+** (with workspaces support)
+- **pnpm 10+**
 - A TypeScript or JavaScript project to analyze
 
-> Kuzu and better-sqlite3 are native modules and will compile during `npm install`. You may need Python 3 and a C++ toolchain (e.g. `build-essential` on Ubuntu, Xcode CLT on macOS) if prebuilt binaries aren't available for your platform.
+> Kuzu and better-sqlite3 are native modules and will compile during `pnpm install`. You may need Python 3 and a C++ toolchain (e.g. `build-essential` on Ubuntu, Xcode CLT on macOS) if prebuilt binaries aren't available for your platform.
 
 ## Installation
 
 ```bash
 git clone <repo-url> depgraph
 cd depgraph
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 This builds all three packages:
@@ -91,7 +91,26 @@ node packages/server/dist/index.js query \
   'MATCH (f:File) WHERE f.dir STARTS WITH "src/auth" RETURN f.id'
 ```
 
-### 4. Reset and re-parse
+### 4. Backfill git history
+
+Snapshot the dependency graph at past commits to see how it evolved:
+
+```bash
+# Process the last 20 commits
+node packages/server/dist/index.js history --n 20
+```
+
+Once backfilled, use the timeline slider in the UI header to scrub through commits and see the graph at each point in time.
+
+### 5. Watch without the UI
+
+Run the file watcher headlessly (no HTTP server or UI):
+
+```bash
+node packages/server/dist/index.js watch
+```
+
+### 6. Reset and re-parse
 
 ```bash
 node packages/server/dist/index.js reset
@@ -106,6 +125,8 @@ All commands are run via `node packages/server/dist/index.js <command>`.
 |---------|-------------|
 | `init <dir>` | Parse a project directory and populate the graph database |
 | `serve` | Start the watcher + API server + UI |
+| `watch` | Watch for file changes and update the graph (no UI server) |
+| `history` | Backfill git history snapshots (`--n` for commit count, default 10) |
 | `query <cypher>` | Run a Cypher query and print results as JSON |
 | `reset` | Delete the `.depgraph/` directory and start fresh |
 | `stop` | Stop the background server (use Ctrl+C for now) |
@@ -157,6 +178,43 @@ GET /api/graph/file/src/auth/index.ts
 }
 ```
 
+### `GET /api/graph/cycles`
+
+Detects circular dependencies (mutual imports) and returns the cycle pairs and all affected file IDs.
+
+```json
+{
+  "cycles": [
+    { "a": "src/foo.ts", "b": "src/bar.ts" }
+  ],
+  "cyclicFileIds": ["src/foo.ts", "src/bar.ts"]
+}
+```
+
+### `GET /api/graph/positions`
+
+Returns saved node positions for layout persistence.
+
+```json
+{
+  "positions": {
+    "src/index.ts": { "x": 420.5, "y": 280.3 }
+  }
+}
+```
+
+### `POST /api/graph/positions`
+
+Saves node positions. The UI calls this automatically when nodes are dragged.
+
+```json
+{
+  "positions": {
+    "src/index.ts": { "x": 420.5, "y": 280.3 }
+  }
+}
+```
+
 ### `POST /api/query`
 
 Execute a raw Cypher query against the Kuzu graph.
@@ -178,7 +236,7 @@ curl -X POST http://localhost:3000/api/query \
 
 ### `GET /api/history`
 
-Returns stored git commit snapshots (populated by a future `depgraph history` command).
+Returns stored git commit snapshots (populated by `depgraph history`).
 
 ### `GET /api/history/:hash`
 
@@ -196,7 +254,7 @@ git clone https://github.com/expressjs/express.git /tmp/express-test
 cd /path/to/depgraph
 
 # Build depgraph
-npm install && npm run build
+pnpm install && pnpm run build
 
 # Initialize the graph (point at the source directory)
 node packages/server/dist/index.js init /tmp/express-test
@@ -211,10 +269,13 @@ Open http://localhost:3000 — you'll see the module graph rendered as an intera
 
 - **Node size** reflects how many files import it (in-degree)
 - **Node color** groups files by directory (all `lib/` files share a hue)
+- **Red dashed border** flags files involved in circular imports
 - **Click** a node to open the symbol panel, showing functions/classes and their call relationships
-- **Drag** nodes to rearrange the layout
+- **Drag** nodes to rearrange the layout — positions are persisted across sessions
 - **Scroll** to zoom in/out
 - **Search** in the top bar to filter files by name
+- **Sidebar filters** let you narrow the view by directory, minimum in-degree, or cycle-only
+- **Timeline slider** (visible after running `depgraph history`) scrubs through git history
 
 ### Example: Analyze your own project
 
@@ -238,15 +299,15 @@ While `depgraph serve` is running, edit any file in the analyzed project. The wa
 ### Build individual packages
 
 ```bash
-npm run build:core     # Build the parser + graph builder
-npm run build:server   # Build the Express server + CLI
-npm run build:ui       # Build the React frontend
+pnpm run build:core     # Build the parser + graph builder
+pnpm run build:server   # Build the Express server + CLI
+pnpm run build:ui       # Build the React frontend
 ```
 
 ### Run the UI in dev mode (hot reload)
 
 ```bash
-npm run dev:ui
+pnpm run dev:ui
 ```
 
 This starts Vite's dev server with hot module replacement. API requests are proxied to `http://localhost:3000`, so make sure `depgraph serve` is running in another terminal.
@@ -254,14 +315,14 @@ This starts Vite's dev server with hot module replacement. API requests are prox
 ## Architecture
 
 ```
-packages/core/       → Parser (ts-morph) + GraphBuilder (Kuzu queries)
+packages/core/       → Parser (ts-morph) + GraphBuilder (Kuzu queries) + HistoryBuilder (simple-git)
 packages/server/     → CLI (commander) + Express API + chokidar watcher + WebSocket
 packages/ui/         → React + D3 force graph + Vite
 ```
 
 **Storage** lives in `.depgraph/` at the analyzed project root:
-- `graph.kuzu/` — Kuzu embedded graph database (files, imports, symbols, calls)
-- `meta.sqlite` — SQLite for project config, parse errors, and watcher state
+- `graph.kuzu/` — Kuzu embedded graph database (files, imports, symbols, calls, commits)
+- `meta.sqlite` — SQLite for project config, parse errors, watcher state, and node positions
 
 ### Graph schema (Kuzu)
 
