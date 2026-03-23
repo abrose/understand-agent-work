@@ -69,6 +69,12 @@ export async function initDB(projectRoot: string): Promise<DBContext> {
       path   TEXT PRIMARY KEY,
       mtime  INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS node_positions (
+      file_id TEXT PRIMARY KEY,
+      x       REAL NOT NULL,
+      y       REAL NOT NULL
+    );
   `);
 
   // Create Kuzu graph builder

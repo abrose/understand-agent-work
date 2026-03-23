@@ -218,6 +218,30 @@ export class GraphBuilder {
     return { file, imports, importedBy, symbols, calls };
   }
 
+  async getCycles(): Promise<{ cycles: Array<{ a: string; b: string }> }> {
+    const result = await this.db.query(
+      `MATCH (a:File)-[:IMPORTS]->(b:File)-[:IMPORTS]->(a)
+       WHERE a.id < b.id
+       RETURN a.id AS a, b.id AS b`
+    );
+    const rows = await result.getAll();
+    const cycles = rows.map((r) => ({
+      a: r.a as string,
+      b: r.b as string,
+    }));
+    return { cycles };
+  }
+
+  async getCyclicFileIds(): Promise<Set<string>> {
+    const { cycles } = await this.getCycles();
+    const ids = new Set<string>();
+    for (const c of cycles) {
+      ids.add(c.a);
+      ids.add(c.b);
+    }
+    return ids;
+  }
+
   async runQuery(cypher: string): Promise<{
     rows: Record<string, unknown>[];
   }> {

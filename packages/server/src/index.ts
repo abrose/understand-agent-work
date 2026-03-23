@@ -6,7 +6,8 @@ import cors from 'cors';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import { Parser } from '@depgraph/core';
+import { Parser, HistoryBuilder } from '@depgraph/core';
+import { simpleGit } from 'simple-git';
 import { initDB, saveProjectMeta, updateLastParsed, logParseError } from './db.js';
 import { graphRoutes } from './routes/graph.js';
 import { queryRoutes } from './routes/query.js';
@@ -139,6 +140,63 @@ program
       process.exit(2);
     }
     process.exit(0);
+  });
+
+// depgraph history
+program
+  .command('history')
+  .description('Backfill git history (last N commits)')
+  .option('-n, --n <count>', 'Number of commits to process', '10')
+  .action(async (opts: { n: string }) => {
+    const n = parseInt(opts.n, 10);
+    const rootDir = findProjectRoot();
+    if (!rootDir) {
+      console.error('No .depgraph directory found. Run "depgraph init <dir>" first.');
+      process.exit(1);
+    }
+
+    const ctx = await initDB(rootDir);
+    const projectMeta = ctx.sqlite
+      .prepare(`SELECT root FROM project WHERE id = 'default'`)
+      .get() as { root: string } | undefined;
+
+    if (!projectMeta) {
+      console.error('No project metadata found. Run "depgraph init <dir>" first.');
+      process.exit(1);
+    }
+
+    const git = simpleGit(projectMeta.root);
+    const historyBuilder = new HistoryBuilder(ctx.builder as any, projectMeta.root);
+    console.log(`Backfilling last ${n} commits...`);
+
+    const count = await historyBuilder.backfill(git as any, n);
+    console.log(`Processed ${count} commits.`);
+    process.exit(0);
+  });
+
+// depgraph watch
+program
+  .command('watch')
+  .description('Watch for file changes and update the graph (no UI server)')
+  .action(async () => {
+    const rootDir = findProjectRoot();
+    if (!rootDir) {
+      console.error('No .depgraph directory found. Run "depgraph init <dir>" first.');
+      process.exit(1);
+    }
+
+    const ctx = await initDB(rootDir);
+    const projectMeta = ctx.sqlite
+      .prepare(`SELECT root FROM project WHERE id = 'default'`)
+      .get() as { root: string } | undefined;
+
+    if (!projectMeta) {
+      console.error('No project metadata found. Run "depgraph init <dir>" first.');
+      process.exit(1);
+    }
+
+    console.log(`Watching ${projectMeta.root} for changes (Ctrl+C to stop)...`);
+    startWatcher(projectMeta.root, ctx);
   });
 
 // depgraph reset
