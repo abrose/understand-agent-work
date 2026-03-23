@@ -5,11 +5,18 @@
   "workspaces": [
     "packages/*"
   ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "kuzu"
+    ]
+  },
   "scripts": {
-    "build": "npm run build --workspaces",
-    "build:core": "npm run build -w packages/core",
-    "build:server": "npm run build -w packages/server",
-    "build:ui": "npm run build -w packages/ui",
-    "dev:ui": "npm run dev -w packages/ui"
+    "build": "pnpm -r run build",
+    "build:core": "pnpm --filter @depgraph/core run build",
+    "build:server": "pnpm --filter @depgraph/server run build",
+    "build:ui": "pnpm --filter @depgraph/ui run build",
+    "dev:ui": "pnpm --filter @depgraph/ui run dev"
   }
 }
